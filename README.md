@@ -7,7 +7,7 @@
 <b>Tempest GDX is a versatile libGDX library, designed to enhance your game development experience.</b>
 
 
-
+<br>
 
 # Downloading
 
@@ -26,6 +26,7 @@ dependencies {
 ```
 
 
+<br>
 
 
 # Licensing
