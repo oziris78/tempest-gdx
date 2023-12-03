@@ -1,0 +1,76 @@
+
+
+
+def projectName = 'tempest-gdx'
+
+apply plugin: 'java-library'
+apply plugin: 'maven'
+
+
+group 'com.github.oziris78'
+version '0.0.1'
+
+
+sourceCompatibility = 1.8 // java 8
+targetCompatibility = 1.8
+
+
+repositories {
+    mavenCentral()
+    maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    maven { url "https://jitpack.io" }
+}
+
+
+
+def gdxVersion = '1.9.13'
+def aiVersion = '1.8.2'
+
+
+dependencies {
+    api "com.badlogicgames.gdx:gdx:$gdxVersion"         // Apache-2.0
+    api "com.badlogicgames.gdx:gdx-ai:$aiVersion"       // Apache-2.0
+    api "com.badlogicgames.gdx:gdx-box2d:$gdxVersion"   // Apache-2.0
+
+    // core libraries for desktop stuff
+    testImplementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+    testImplementation "com.badlogicgames.gdx:gdx-backend-lwjgl:$gdxVersion"
+    testImplementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
+    testImplementation "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
+    testImplementation "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
+
+}
+
+
+
+if (JavaVersion.current().isJava8Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.addStringOption('Xdoclint:none,-missing', '-quiet')
+        }
+    }
+}
+
+
+if(JavaVersion.current().isJava9Compatible()) {
+    allprojects {
+        tasks.withType(JavaCompile) {
+            options.release.set(7) // you can make this 8 if you don't support ios
+        }
+    }
+}
+
+
+jar {
+    archiveBaseName.set(projectName)
+    manifest {
+        attributes 'Implementation-Title': projectName, 'Implementation-Version': archiveVersion
+    }
+}
+
+
+wrapper {
+    gradleVersion = "6.1.1"
+    distributionType = Wrapper.DistributionType.ALL
+}
+
