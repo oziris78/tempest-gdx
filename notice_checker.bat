@@ -1,0 +1,1 @@
+python ./notice_checker.py
