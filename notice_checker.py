@@ -55,13 +55,13 @@ PROJECT_LICENSE = "Apache-2.0"
 # These paths must be written with "/" separator for the script to be cross-platform 
 SKIP_FILES = [
     "LICENSE", "LICENSE.txt", "README.md", ".gitignore", "AUTHORS", "AUTHORS.txt",
-    "notice_checker.bat", "gradlew.bat", "gradlew", "things_to_do.txt", "settings.gradle",
+    "notice_checker.bat", "gradlew.bat", "gradlew", "settings.gradle",
     "build.gradle"
 ]
 
 # Files with the following extensions will be skipped by this script
 SKIP_FILE_EXTENSIONS = [
-    ".png", ".jpg", ".jpeg", ".mp3", ".wav", ".mp4"
+    ".png", ".jpg", ".jpeg", ".mp3", ".wav", ".mp4", ".exe"
 ]
  
 # Directories with the following paths (relative to the PROJECT_ROOT_PATH) will be skipped
