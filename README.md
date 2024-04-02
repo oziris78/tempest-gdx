@@ -21,7 +21,7 @@ allprojects {
 }
 
 dependencies {
-    implementation 'com.github.oziris78:tempest-gdx:v0.0.1'
+    implementation 'com.github.oziris78:tempest-gdx:v1.0.0'
 }
 ```
 

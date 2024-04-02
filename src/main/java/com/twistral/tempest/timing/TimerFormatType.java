@@ -1,4 +1,4 @@
-// Copyright 2020-2024 Oğuzhan Topaloğlu
+// Copyright 2024 Oğuzhan Topaloğlu
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package com.twistral.tempest.screensorter;
 
-import com.badlogic.gdx.Screen;
+package com.twistral.tempest.timing;
 
 
-public interface TScreen extends Screen {
-
-    void update(float delta);
-
-    /** Reset every field you have in this method. */
-    void configure();
-
+public enum TimerFormatType {
+    DAY_HOUR_MIN_SEC_MILLI, HOUR_MIN_SEC_MILLI, MIN_SEC_MILLI,
+    SEC_MILLI, DAY_HOUR_MIN_SEC, HOUR_MIN_SEC, MIN_SEC, SEC
 }
+

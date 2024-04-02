@@ -1,4 +1,4 @@
-// Copyright 2020-2024 Oğuzhan Topaloğlu
+// Copyright 2024 Oğuzhan Topaloğlu
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,86 +12,88 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+
 package com.twistral.tempest.timing;
 
 
+
+import com.twistral.tempest.TempestException;
+
+
+
 public class AccumulationTimer {
-
-    //////////////
-    /*  FIELDS  */
-    //////////////
-
 
     /** Elapsed time in seconds. */
     protected float time;
 
 
-    ////////////////////
-    /*  CONSTRUCTORS  */
-    ////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  CONSTRUCTORS  /////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
 
     public AccumulationTimer(float initialTime){
         this.time = initialTime;
     }
 
-    public AccumulationTimer(){
+    public AccumulationTimer() {
         this(0f);
     }
 
 
-    ///////////////
-    /*  METHODS  */
-    ///////////////
+    /////////////////////////////////////////////////////////////////////
+    /////////////////////////////  METHODS  /////////////////////////////
+    /////////////////////////////////////////////////////////////////////
 
-    public void update(float deltaTime){
+    public void update(float deltaTime) {
         this.time += deltaTime;
     }
 
-    public float getTime() {
-        return time;
+
+    ////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  STRING METHODS  /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
+
+    public String asString(TimerFormatType formatType) {
+        if(formatType == null) formatType = TimerFormatType.MIN_SEC_MILLI;
+
+        switch (formatType) {
+            case DAY_HOUR_MIN_SEC_MILLI:
+                return String.format("%02d:%02d:%02d:%02d:%03d",
+                    getDayCount(), getHourCount(), getMinuteCount(), getSecCount(), getMilliCount());
+            case HOUR_MIN_SEC_MILLI:
+                return String.format("%02d:%02d:%02d:%03d",
+                    getHourCount(), getMinuteCount(), getSecCount(), getMilliCount());
+            case DAY_HOUR_MIN_SEC:
+                return String.format("%02d:%02d:%02d:%02d",
+                    getDayCount(), getHourCount(), getMinuteCount(), getSecCount());
+            case MIN_SEC_MILLI:
+                return String.format("%02d:%02d:%03d", getMinuteCount(), getSecCount(), getMilliCount());
+            case HOUR_MIN_SEC:
+                return String.format("%02d:%02d:%02d", getHourCount(), getMinuteCount(), getSecCount());
+            case SEC_MILLI:
+                return String.format("%02d:%03d", getSecCount(), getMilliCount());
+            case MIN_SEC:
+                return String.format("%02d:%02d", getMinuteCount(), getSecCount());
+            case SEC:
+                return String.format("%02d", getSecCount());
+        }
+
+        throw new TempestException.UnreachableException();
     }
 
 
+    /////////////////////////////////////////////////////////////////////
+    /////////////////////////////  GETTERS  /////////////////////////////
+    /////////////////////////////////////////////////////////////////////
 
-    //////////////////////////////////////////////////////
-    ////////////////   STRING METHODS   //////////////////
-    //////////////////////////////////////////////////////
+    public float getElapsedSecs() { return time; }
 
-
-    public String toDayString(){
-        return TimingUtils.toDayString(time);
-    }
-
-    public String toHourString(){
-        return TimingUtils.toHourString(time);
-    }
-
-    public String toMinuteString(){
-        return TimingUtils.toMinuteString(time);
-    }
-
-    public String toSecondString(){
-        return TimingUtils.toSecondString(time);
-    }
-
-    public String toDayStringNoMilli(){
-        return TimingUtils.toDayStringNoMilli(time);
-    }
-
-    public String toHourStringNoMilli(){
-        return TimingUtils.toHourStringNoMilli(time);
-    }
-
-    public String toMinuteStringNoMilli(){
-        return TimingUtils.toMinuteStringNoMilli(time);
-    }
-
-    public String toSecondStringNoMilli(){
-        return TimingUtils.toSecondStringNoMilli(time);
-    }
-
-
-
-
+    public int getDayCount(){ return (int) (this.time / 86400f); }
+    public int getHourCount(){ return (int) (this.time / 3600f) % 24; }
+    public int getMinuteCount(){ return (int) ((this.time % 3600f) / 60f); }
+    public int getSecCount(){ return (int) ((this.time % 3600f) % 60f); }
+    public int getMilliCount(){ return (int) ((this.time % 1f) * 1000f); }
 
 }

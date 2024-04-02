@@ -1,4 +1,4 @@
-// Copyright 2020-2024 Oğuzhan Topaloğlu
+// Copyright 2024 Oğuzhan Topaloğlu
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,161 +12,360 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 package com.twistral.tempest.assetsorter;
 
 
 import com.badlogic.gdx.assets.*;
+import com.badlogic.gdx.assets.loaders.AssetLoader;
 import com.badlogic.gdx.utils.Disposable;
-import java.util.HashMap;
+import com.twistral.tempest.TempestException.AssetIDDoesntExistException;
+import com.twistral.tempest.TempestException.AssetIDAlreadyExistsException;
+import java.util.*;
 
 
-public final class AssetSorter {
+
+/**
+ * {@link AssetSorter} is an improved version of the {@link AssetManager} class. <br><br>
+ *
+ * For {@link AssetSorter}, there are two types of assets: <br>
+ * 1. Existing Assets: assets that are already initialized and loaded properly <br>
+ * 2. Queueable Assets: assets that are currently not in the RAM, but can be put into a
+ *     loading queue and be loaded into the RAM <br><br>
+ *
+ * There are two major problems with {@link AssetManager}: <br>
+ * 1. It doesn't allow us to store our existing assets in the same place where we store our
+ *     queueable assets. Ending up in a messy structure and object all over the place. <br>
+ * 2. It has a very badly written design where the method names are misleading. <br><br>
+ *
+ * This is why {@link AssetSorter} exists. It allows us to store our existing assets inside it
+ * while still providing everything that the {@link AssetManager} class provides. Also, it makes
+ * a separation between loading, queueing and defining. <br><br>
+ *
+ * Here's a list of terminology differences ({@link AssetManager} to {@link AssetSorter}): <br>
+ * -  functionality doesnt exist  =>  addExistingAsset, removeExistingAsset <br>
+ * -  functionality doesnt exist  =>  defineAsset, undefineAsset <br>
+ * -  load, unload                =>  queueAsset, dequeueAsset <br>
+ * -  update, finishLoading       =>  keepLoading, finishLoading <br>
+ * -  get                         =>  getAsset (works both for existing and queueable assets) <br><br>
+ *
+ * Usage is pretty straightforward: <br>
+ * 1. For existing assets: ADD => GET <br>
+ * 2. For queueable assets: DEFINE => QUEUE => LOAD => GET <br>
+ */
+public class AssetSorter implements Disposable {
+
+    private final HashMap<String, Disposable> existingAssets;
+
+    private final HashMap<String, AssetDescriptor> queueableAssets;
+    private final AssetManager assetManager;
 
 
-    /*  FIELDS  */
-
-    private AssetManager assetManager;
-    private HashMap<String, AssetGroup> groups;
-    private HashMap<String, Disposable> immediatelyNeededAssets;
-
-
-    /*  CONSTRUCTORS  */
-
-    public AssetSorter(){
+    public AssetSorter() {
         this.assetManager = new AssetManager();
-        this.immediatelyNeededAssets = new HashMap<>();
-        this.groups = new HashMap<>();
+        this.existingAssets = new HashMap<>(128);
+        this.queueableAssets = new HashMap<>(512);
     }
 
 
+    /////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  EXISTING ASSETS  /////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////
 
-    /*  MAIN METHODS  */
 
+    public AssetSorter addExistingAsset(String assetID, Disposable asset) {
+        if(existingAssets.containsKey(assetID))
+            throw new AssetIDAlreadyExistsException(assetID);
 
-    /**
-     * Adds the specified immediately-needed-asset with the specified assetKey to it's inside.
-     * @param assetKey key for your immediately-needed-assets asset
-     * @param asset any immediately-needed-assets asset
-     * @param <T> type of your asset
-     */
-    public <T extends Disposable> void addImmediatelyNeededAsset(String assetKey, T asset){
-        if( this.immediatelyNeededAssets.containsKey(assetKey) )
-            throw new RuntimeException("This key already exists: " + assetKey);
-        this.immediatelyNeededAssets.put(assetKey, asset);
+        existingAssets.put(assetID, asset);
+        return this;
     }
 
 
+    public AssetSorter removeExistingAsset(String assetID) {
+        if(!existingAssets.containsKey(assetID))
+            throw new AssetIDDoesntExistException(assetID);
 
-    /**
-     * Adds the specified to-be-loaded asset with the specified assetKey to the specified group.
-     * If this group doesn't exist, it will create it for you!
-     * @param groupKey key for your group
-     * @param assetKey key for your to-be-loaded asset
-     * @param asset any to-be-loaded asset
-     */
-    public void addAsset(String groupKey, String assetKey, AssetDescriptor asset){
-        if(!this.groups.containsKey(groupKey)){ // group doesn't exist so create it
-            this.groups.put( groupKey, new AssetGroup() );
+        existingAssets.remove(assetID);
+        return this;
+    }
+
+
+    public void removeAllExistingAssets() {
+        existingAssets.clear();
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  DEFINE/UNDEFINE ASSETS  /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////
+
+
+    public <T> AssetSorter defineAsset(String assetID, String fileName, Class<T> assetType) {
+        return this.defineAsset(assetID, fileName, assetType, null);
+    }
+
+
+    public <T> AssetSorter defineAsset(String assetID, String fileName, Class<T> assetType, AssetLoaderParameters<T> params) {
+        if(queueableAssets.containsKey(assetID))
+            throw new AssetIDAlreadyExistsException(assetID);
+
+        queueableAssets.put(assetID, new AssetDescriptor(fileName, assetType, params));
+        return this;
+    }
+
+
+    public AssetSorter undefineAsset(String assetID) {
+        if(!queueableAssets.containsKey(assetID))
+            throw new AssetIDDoesntExistException(assetID);
+
+        queueableAssets.remove(assetID);
+        return this;
+    }
+
+
+    public void undefineAllAssets() {
+        queueableAssets.clear();
+    }
+
+
+    //////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  QUEUE/DEQUEUE ASSETS  /////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////
+
+
+    public AssetSorter queueAsset(String assetID) {
+        if(!this.queueableAssets.containsKey(assetID))
+            throw new AssetIDDoesntExistException(assetID);
+
+        final AssetDescriptor assetDesc = this.queueableAssets.get(assetID);
+        this.assetManager.load(assetDesc);
+        return this;
+    }
+
+
+    public AssetSorter dequeueAsset(String assetID) {
+        if(!this.queueableAssets.containsKey(assetID))
+            throw new AssetIDDoesntExistException(assetID);
+
+        final AssetDescriptor assetDesc = this.queueableAssets.get(assetID);
+        this.assetManager.unload(assetDesc.fileName);
+        return this;
+    }
+
+
+    public boolean isQueued(String assetID) {
+        if(!this.queueableAssets.containsKey(assetID))
+            throw new AssetIDDoesntExistException(assetID);
+
+        final AssetDescriptor assetDesc = this.queueableAssets.get(assetID);
+        return this.assetManager.isLoaded(assetDesc);
+    }
+
+
+    ///////////////////////////////////////////////////////////////////////
+    ///////////////  QUEUE/DEQUEUE (QUALITY OF LIFE FUNCS)  ///////////////
+    ///////////////////////////////////////////////////////////////////////
+
+
+    public AssetSorter queueAssets(String... assetIDs) {
+        for(String assetID : assetIDs) { queueAsset(assetID); }
+        return this;
+    }
+
+
+    public AssetSorter dequeueAssets(String... assetIDs) {
+        for(String assetID : assetIDs) { dequeueAsset(assetID); }
+        return this;
+    }
+
+
+    public AssetSorter queueAssetsWithRegex(final String regex) {
+        for(String assetID : this.queueableAssets.keySet()) {
+            if(assetID.matches(regex)) queueAsset(assetID);
         }
-        // find the group and add the asset to that group
-        this.groups.get(groupKey).addAsset(assetKey, asset);
+        return this;
     }
 
 
-
-    /**
-     * Use this method to get your to-be-loaded assets. You should call
-     * {@link #update(String)} or {@link #update(String, int)} to load some
-     * group before you get any assets from that group.
-     * Example:  assetSorter.getResource("myFont", BitmapFont.class);
-     * @param groupKey key for your group.
-     * @param assetKey key for your to-be-loaded asset.
-     * @param clazz the class of your to-be-loaded asset.
-     * @param <T> type of the asset.
-     * @return Your to-be-loaded asset.
-     */
-    public <T> T getResource(String groupKey, String assetKey, Class<T> clazz) {
-        return this.assetManager.get(getGroup(groupKey).getAsset(assetKey).fileName, clazz);
+    public AssetSorter dequeueAssetsWithRegex(final String regex) {
+        for(String assetID : this.queueableAssets.keySet()) {
+            if(assetID.matches(regex)) dequeueAsset(assetID);
+        }
+        return this;
     }
 
 
-
-    /**
-     * Use this method to get your immediately-needed assets.
-     * Example:  assetSorter.getResource("myFont", BitmapFont.class);
-     * @param assetKey key for your immediately-needed asset.
-     * @param clazz the class of your immediately-needed asset.
-     * @param <T> any type that extends/implements {@link Disposable}.
-     * @return Your immediately-needed asset after it's casted into the specified class.
-     */
-    public <T extends Disposable> T getResource(String assetKey, Class<T> clazz){
-        if( !this.immediatelyNeededAssets.containsKey(assetKey) )
-            throw new RuntimeException("This key doesn't exists: " + assetKey);
-        return clazz.cast( immediatelyNeededAssets.get(assetKey) );
+    public AssetSorter dequeueAll() {
+        for(String assetID : this.queueableAssets.keySet()) {
+            if(isQueued(assetID)) dequeueAsset(assetID);
+        }
+        return this;
     }
 
 
+    public AssetSorter queueAll() {
+        for(String assetID : this.queueableAssets.keySet()) {
+            if(isQueued(assetID)) queueAsset(assetID);
+        }
+        return this;
+    }
 
-    /**  Starts/continues loading the specified group with milliseconds.  */
-    public boolean update(String groupKey, int milliseconds) {
-        queueGroup( getGroup(groupKey) );
+
+    ////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  LOADING ASSETS  /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
+
+    public boolean keepLoading(int milliseconds) {
         return this.assetManager.update(milliseconds);
     }
 
 
+    public boolean keepLoading() {
+        return keepLoading(17);
+    }
+
+
+    public void finishLoading() {
+        this.assetManager.finishLoading();
+    }
+
+
+    public void finishLoadingSpecificAsset(String assetID) {
+        if(!this.queueableAssets.containsKey(assetID))
+            throw new AssetIDDoesntExistException(assetID);
+
+        final AssetDescriptor assetDesc = this.queueableAssets.get(assetID);
+        this.assetManager.finishLoadingAsset(assetDesc);
+    }
+
+
+    public boolean isFinishedLoading() {
+        return this.assetManager.isFinished();
+    }
+
 
     /**
-     * Starts/continues loading the specified group with milliseconds set to 17 which is the recommended value.
-     * Example:  while(!game.assetSorter.update("GAME_SCREEN")){ float curProgress = game.assetSorter.getPercentage(); ... }
+     * @return the current loading progress as a float in range [0, 1]
      */
-    public boolean update(String groupKey) {
-        return update(groupKey, 17);
-    }
-
-
-    /** Disposes all assets. (both to-be-loaded assets and immediately-needed assets) */
-    public void disposeAll() {
-        // dispose all to-be-loaded assets
-        this.assetManager.dispose();
-        // dispose all immediately needed assets
-        for(Disposable asset : this.immediatelyNeededAssets.values()) asset.dispose();
-    }
-
-
-    /*  UTILITY METHODS  */
-
-    /**  @return The current progress of the assetSorter (of all queued assets) as a float in range [0,1]  */
-    public float getPercentage() {
+    public float getProgress() {
         return this.assetManager.getProgress();
     }
 
 
-
-    /*  GETTERS AND SETTERS  */
+    ///////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  GETTING ANY ASSET  /////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
 
 
     /**
-     * If you're only going to use AsserSorter for your asset management needs, then you will never ever
-     * need this method because AssetSorter does everything that you need to do with assetManager for you!
-     * <br> However, I'm leaving this method in just in case you ever want to implement something on your own.
-     * @return the assetManager wrapped inside this assetSorter
+     * This class searches for an asset with the specified ID String and returns it. <br>
+     * It doesn't matter if the requested asset is an "Existing Asset" or an "Queueable Asset".
+     * @param assetID the id String of the requested asset
+     * @param assetClass the class of the requested asset
+     * @return the requested asset
+     * @param <T> the type of the returned asset
      */
-    public AssetManager getAssetManager() {return assetManager;}
+    public <T> T getAsset(String assetID, Class<T> assetClass) {
+        if(existingAssets.containsKey(assetID)) {
+            final Disposable asset = existingAssets.get(assetID);
+            return assetClass.cast(asset);
+        }
+        if(queueableAssets.containsKey(assetID)) {
+            final AssetDescriptor assetDesc = this.queueableAssets.get(assetID);
+            return this.assetManager.get(assetDesc.fileName, assetClass);
+        }
 
-
-
-    /*  HELPERS  */
-
-    private void queueGroup(AssetGroup group) {
-        if (!group.isQueued())
-            group.queue(this.assetManager);
+        throw new AssetIDDoesntExistException(assetID);
     }
 
 
-    private AssetGroup getGroup(String groupKey) {
-        if(!this.groups.containsKey(groupKey))
-            throw new RuntimeException("Group not found for this groupID: " + groupKey);
-        return this.groups.get(groupKey);
+    public boolean isAvailable(String assetID) {
+        if(existingAssets.containsKey(assetID)) return true;
+        if(queueableAssets.containsKey(assetID)) {
+            final AssetDescriptor assetDesc = this.queueableAssets.get(assetID);
+            return this.assetManager.isLoaded(assetDesc);
+        }
+
+        throw new AssetIDDoesntExistException(assetID);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  CUSTOM LOADERS  /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
+
+    public <T, P extends AssetLoaderParameters<T>>
+    void setLoader(Class<T> type, String suffix, AssetLoader<T, P> loader) {
+        this.assetManager.setLoader(type, suffix, loader);
+    }
+
+
+    public <T, P extends AssetLoaderParameters<T>>
+    void setLoader(Class<T> type, AssetLoader<T, P> loader) {
+        this.assetManager.setLoader(type, loader);
+    }
+
+
+    /////////////////////////////////////////////////////////////////////
+    /////////////////////////////  GETTERS  /////////////////////////////
+    /////////////////////////////////////////////////////////////////////
+
+
+    /**
+     * Theoretically speaking, you should never need to use this function to gain access to the
+     * underlying {@link AssetManager} instance since {@link AssetSorter} is supposted to be more
+     * than enough for all your asset related needs. But just in case, I'm leaving this method in
+     * here so that you can use it to implement something on your own or fix an issue that I am
+     * currently not aware of.
+     * @return the underlying {@link AssetManager} instance
+     */
+    public AssetManager getAssetManager() { return assetManager; }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  OBJECT METHODS  /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
+
+    @Override
+    public void dispose() {
+        this.assetManager.dispose();
+
+        for(Map.Entry<String, Disposable> assetEntry : this.existingAssets.entrySet()) {
+            final Disposable asset = assetEntry.getValue();
+            asset.dispose();
+        }
+    }
+
+
+    @Override
+    public String toString() {
+        return "AssetOverlord{" + "existingAssets=" + existingAssets + ", queueableAssets=" +
+            queueableAssets + ", assetManager=" + assetManager + '}';
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if ((o == null) || (getClass() != o.getClass())) {
+            return false;
+        }
+        AssetSorter t = (AssetSorter) o;
+        return Objects.equals(existingAssets, t.existingAssets) &&
+            Objects.equals(queueableAssets, t.queueableAssets) && Objects.equals(assetManager, t.assetManager);
+    }
+
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(existingAssets, queueableAssets, assetManager);
     }
 
 

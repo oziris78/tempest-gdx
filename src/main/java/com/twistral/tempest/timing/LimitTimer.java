@@ -15,52 +15,29 @@
 package com.twistral.tempest.timing;
 
 
+
 public class LimitTimer extends AccumulationTimer {
 
-
-    //////////////
-    /*  FIELDS  */
-    //////////////
-
-    /** A limit in seconds. */
-    private final float limit;
+    private final float limit; // in seconds
 
 
-    ////////////////////
-    /*  CONSTRUCTORS  */
-    ////////////////////
-
-    public LimitTimer(boolean hasAlreadyExceeded, final float limit){
-        this.limit = limit;
-        this.time = hasAlreadyExceeded ? limit : 0f;
+    public LimitTimer(float limitInSeconds) {
+        super();
+        this.limit = limitInSeconds;
     }
 
-    public LimitTimer(final float limit){
-        this(true, limit);
-    }
 
-    ///////////////
-    /*  METHODS  */
-    ///////////////
-
-    public boolean hasPassed(){
-        if(this.time >= limit){
+    public boolean hasPassed() {
+        if(this.time >= this.limit){
             this.time = 0f;
             return true;
         }
         return false;
     }
 
-    public float howManySecsLeft(){
-        return (limit >= time) ? limit - time : 0f;
-    }
 
-    public float howManyMinsLeft(){
-        return howManySecsLeft() / 60f;
-    }
-
-    public int howManyMillisecsLeft(){
-        return (int) (howManySecsLeft() * 1000f);
+    public float getRemainingSecs() {
+        return Math.max(0f, limit - time);
     }
 
 
