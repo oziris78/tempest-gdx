@@ -8,7 +8,7 @@ apply plugin: 'maven'
 
 
 group 'com.github.oziris78'
-version '1.0.0'
+version '1.0.1'
 
 
 sourceCompatibility = 1.8 // java 8
@@ -55,7 +55,9 @@ if (JavaVersion.current().isJava8Compatible()) {
 if(JavaVersion.current().isJava9Compatible()) {
     allprojects {
         tasks.withType(JavaCompile) {
-            options.release.set(7) // you can make this 8 if you don't support ios
+            // 2024 comment: you can make this 8 if you don't support ios
+            // 2025 comment: imma do it anyways cuz fuck ios & i need gradle to work properly
+            options.release.set(8)
         }
     }
 }
